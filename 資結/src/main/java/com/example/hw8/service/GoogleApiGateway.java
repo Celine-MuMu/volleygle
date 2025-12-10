@@ -1,60 +1,3 @@
-/*package com.example.hw8.service;
-
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
-// 這裡不需要 Jsoup, Collectors, LinkedHashMap 等，因為沒有排序和爬取邏輯
-
-@Service
-public class GoogleApiGateway { // <-- 類別名稱已更改
-
-    @Value("${google.cse.apiKey}")
-    private String apiKey;
-
-    @Value("${google.cse.cx}")
-    private String cx;
-
-    private final RestTemplate restTemplate = new RestTemplate();
-    private static final String API_BASE_URL = "https://www.googleapis.com/customsearch/v1";
-
-    /**
-     * 只負責呼叫 Google CSE API，獲取結果。回傳結果為 Map<Title, Link>。
-     */
- /*    public Map<String, String> search(String query) {
-        Map<String, String> results = new HashMap<>(); // 使用 HashMap 儲存原始結果
-
-        try {
-            for (int i = 1; i < 21; i += 10) {
-                String q = URLEncoder.encode(query, StandardCharsets.UTF_8.name());
-                String url = API_BASE_URL + "?key=" + apiKey +
-                        "&cx=" + cx + "&num=10&start=" + i + "&q=" + q;
-
-                Map<String, Object> body = restTemplate.getForObject(url, Map.class);
-
-                if (body != null && body.get("items") instanceof List) {
-                    List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
-
-                    for (Map<String, Object> item : items) {
-                        String title = (String) item.get("title");
-                        String link = (String) item.get("link");
-                        if (title != null && link != null) {
-                            results.put(title, link);
-                        }
-                    }
-                } else {
-                    break;
-                }
-            }
-        } catch (Exception e) {
-            System.err.println("!!! [API Gateway] 呼叫發生錯誤: " + e.getMessage() + " !!!");
-        }
-        return results;
-    }
-}*/
-
 package com.example.hw8.service;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -77,36 +20,48 @@ public class GoogleApiGateway {
     private final RestTemplate restTemplate = new RestTemplate();
     private static final String API_BASE_URL = "https://www.googleapis.com/customsearch/v1";
 
-    // 排除常見的無效檔案類型和難以爬取的網域 (Sitemap, Facebook, Twitter 等)
-    private static final List<String> INVALID_FILTER_TERMS = 
-        Arrays.asList(".xml", ".gz", ".pdf", ".zip", ".rss", ".sitemap", "xml.gz", 
-                      "facebook.com", "twitter.com", "instagram.com", "t.co");
+    // (一) 過濾列表 1: 用於篩選掉明顯無效的檔案類型
+    private static final List<String> INVALID_EXTENSIONS = 
+        Arrays.asList(".xml", ".gz", ".pdf", ".zip", ".rss", ".sitemap", "xml.gz");
 
+    // (二) 過濾列表 2: 用於排除系統文件、證書等雜項結果，強化內容相關性
+    private static final List<String> EXCLUDE_KEYWORDS =
+        Arrays.asList("certificate", "trusted root", "policy", "sitemap", "xml", "json", "watchos", "changelog", "license", "api", "interface", "firmware", "software", "update");
+    
     /**
-     * 呼叫 Google CSE API，獲取最多 50 筆結果。回傳結果為 Map<Title, Link>。
+     * 呼叫 Google CSE API 獲取結果。
+     * @param query 查詢關鍵字
+     * @return 包含結果標題和連結的 Map (Map<Title, Link>)
      */
     public Map<String, String> search(String query) {
-        
-        // 【DEBUG 輸出】用於確認程式碼使用的 Key/CX 是否正確
-        System.out.println("==================== API DEBUG INFO ====================");
-        System.out.println("【DEBUG】使用中的 CSE CX: " + this.cx);
-        String keyPrefix = this.apiKey != null && this.apiKey.length() >= 5 ? this.apiKey.substring(0, 5) : "KEY_NOT_FOUND or SHORT";
-        System.out.println("【DEBUG】使用中的 API Key (前 5 碼): " + keyPrefix + "...");
-        System.out.println("======================================================");
-
-
+        // 使用 LinkedHashMap 來保留 API 返回的原始順序
         Map<String, String> results = new LinkedHashMap<>(); 
 
-        // 判斷是否為中文，並設定語言限制 (lr=lang_zh-TW)
-        String langParam = query.matches(".*[\\u4e00-\\u9fa5]+.*") ? "&lr=lang_zh-TW" : "";
-
+        // 1. URL 編碼 (必須處理編碼異常)
+        String q;
         try {
-            // 【核心修正點：查詢數量】從 1 開始，到小於 51 結束，每次遞增 10
-            // 總共會執行 5 次呼叫 (start=1, 11, 21, 31, 41)，最多獲取 50 筆結果。
-            for (int i = 1; i < 51; i += 10) { 
-                String q = URLEncoder.encode(query, StandardCharsets.UTF_8.name());
+            q = URLEncoder.encode(query, StandardCharsets.UTF_8.name());
+        } catch (java.io.UnsupportedEncodingException e) {
+            System.err.println("!!! [API Gateway] 查詢關鍵字編碼發生錯誤: " + e.getMessage() + " !!!");
+            q = query; 
+        }
+        
+        // 2. 語言限制邏輯: 僅對中文進行硬性限制，其他語言讓 Google 自動判斷
+        String langParam = "";
+
+        // 中文 (漢字: u4e00-u9fa5)
+        if (query.matches(".*[\\u4e00-\\u9fa5]+.*")) { 
+            // 僅對中文設定硬性限制，優先使用繁體中文
+            langParam = "&lr=lang_zh-TW"; 
+        }
+        // 韓文、日文、英文、俄文等所有其他語言，langParam 保持為 ""。
+        // 這樣 Google 會根據關鍵字本身的語義來判斷最相關的語言結果。
+
+        // 3. 分頁呼叫 API，最多取得 50 筆結果
+        try {
+            // 測試先用2
+            for (int i = 1; i < 2; i += 10) { 
                 
-                // num=10 每次獲取 10 筆
                 String url = API_BASE_URL + "?key=" + apiKey +
                         "&cx=" + cx + "&num=10&start=" + i + "&q=" + q + langParam;
 
@@ -121,17 +76,25 @@ public class GoogleApiGateway {
                         
                         if (title != null && link != null) {
                             
-                            // 檢查是否為無效的檔案類型或網域
-                            boolean isInvalid = INVALID_FILTER_TERMS.stream()
-                                    .anyMatch(term -> link.toLowerCase().contains(term));
+                            // (三) 執行過濾邏輯
+                            String lowerLink = link.toLowerCase();
+                            String lowerTitle = title.toLowerCase();
 
-                            if (isInvalid) {
-                                // 略過無效連結
+                            // 檢查是否為無效的檔案類型
+                            boolean isInvalidExt = INVALID_EXTENSIONS.stream()
+                                    .anyMatch(ext -> lowerLink.contains(ext));
+
+                            // 檢查是否包含排斥關鍵字
+                            boolean isExcludedKeyword = EXCLUDE_KEYWORDS.stream()
+                                    .anyMatch(keyword -> lowerLink.contains(keyword) || lowerTitle.contains(keyword));
+
+                            if (isInvalidExt || isExcludedKeyword) {
+                                // 如果是無效連結或包含排斥關鍵字，則跳過
                                 continue; 
                             }
                             
                             try {
-                                // 嘗試解碼標題
+                                // (四) 標題解碼
                                 String decodedTitle = URLDecoder.decode(title, StandardCharsets.UTF_8.name()); 
                                 results.put(decodedTitle, link);
                             } catch (Exception e) {
@@ -140,12 +103,11 @@ public class GoogleApiGateway {
                         }
                     }
                 } else {
-                    // 如果 API 返回的 body 中沒有 items，表示已無更多結果，則退出迴圈
                     break;
                 }
             }
         } catch (Exception e) {
-            System.err.println("!!! [API Gateway] 呼叫發生錯誤: " + e.getMessage() + " !!!");
+            System.err.println("!!! [API Gateway] 呼叫或處理結果發生錯誤: " + e.getMessage() + " !!!");
         }
         return results;
     }
