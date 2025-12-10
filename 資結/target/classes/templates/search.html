@@ -99,14 +99,42 @@
         <button type="submit">Search</button>
     </form>
 
-    <div class="results" th:if="${results != null and !#lists.isEmpty(results)}">
-        <h3>Results for "<span th:text="${keyword}"></span>"</h3>
-        <ul>
-            <li th:each="entry : ${results.entrySet()}">
-                <a th:href="${entry.value}" th:text="${entry.key}" target="_blank" rel="noopener noreferrer"></a>
-            </li>
-        </ul>
-    </div>
+    <div th:if="${results != null and !results.empty}">
+    <h2>🏆 搜尋結果總覽 (<span th:text="${results.size()}"></span> 筆)</h2>
+    
+    <ul class="result-list" style="list-style-type: none; padding-left: 0;">
+        <li th:each="node : ${results}" style="margin-bottom: 25px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+            
+            <div>
+                <strong>🌟 總分數 (Total Score): </strong> 
+                <span th:text="${node.totalScore}" style="color: #c00; font-weight: bold;"></span> 
+                (頁面分數: <span th:text="${node.score}"></span>)
+            </div>
+            
+            <h3>
+                <a th:href="${node.url}" th:text="${node.title}" target="_blank"></a>
+            </h3>
+            <p style="font-size: 0.9em; color: #555;">URL: <span th:text="${node.url}"></span></p>
+
+            <div th:if="${!node.children.empty}" style="margin-top: 10px; padding-left: 10px; border-left: 2px solid #eee;">
+                <h4>⬇️ 追蹤到的子網頁:</h4>
+                <ul style="list-style-type: disc; margin-top: 5px;">
+                    <li th:each="child : ${node.children}">
+                        [<span th:text="${child.score}"></span> 分] 
+                        <a th:href="${child.url}" th:text="${child.title}" target="_blank"></a>
+                    </li>
+                </ul>
+                <div th:if="${node.children.size() > 5}" style="font-style: italic; color: #888;">
+                    (已找到更多子網頁，僅在此處列出部分)
+                </div>
+            </div>
+        </li>
+    </ul>
 </div>
+
+<div th:unless="${results != null and !results.empty}">
+    <p>未找到相關結果，或所有爬取任務均失敗。請嘗試調整關鍵字或檢查您的測試 URL。</p>
+</div>
+
 </body>
 </html>
