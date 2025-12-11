@@ -6,32 +6,40 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.DisposableBean;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 // 引入處理 SSL 錯誤所需的類別
 import javax.net.ssl.*;
 import java.security.cert.X509Certificate;
 
 @Service
-public class LinkExtractor {
+public class LinkExtractor implements DisposableBean {
 
     // 追蹤已訪問的 URL，避免重複爬取和無限循環 (使用 ConcurrentHashMap 確保線程安全)
     private final Set<String> visitedUrls = ConcurrentHashMap.newKeySet();
-
     private final KeywordScorer keywordScorer;
-
     // 設定爬取的最大深度，防止爬取時間過長
-    private static final int MAX_DEPTH = 2; // 深度 0 是根節點，深度 1 是子網頁...
+    private static final int MAX_DEPTH = 1; // 深度 0 是根節點，深度 1 是子網頁...
+    // 【新增】執行緒池屬性，用於內部並行
+    private final ExecutorService executorService;
 
     public LinkExtractor(KeywordScorer keywordScorer) {
-        // 透過建構子注入 KeywordScorer 服務
         this.keywordScorer = keywordScorer;
+        // 為了簡單起見，我們在這裡創建一個新的執行緒池用於內部爬取
+        // 最佳實踐是從 SearchManager 或配置中注入同一個
+        this.executorService = Executors.newFixedThreadPool(10);
     }
 
     /**
@@ -94,23 +102,65 @@ public class LinkExtractor {
         // 3. 提取並遞迴追蹤子連結
         if (depth < MAX_DEPTH) {
             Elements links = doc.select("a[href]");
-            String domain = getDomain(url); // 取得當前 URL 的域名，用於站內連結判斷
+            String domain = getDomain(url);
 
-            for (Element link : links) {
-                String absoluteLink = link.attr("abs:href");
+            // 【優化核心】將所有子連結的建樹任務轉為異步任務 (Futures)
+            List<CompletableFuture<WebNode>> childFutures = links.stream()
+                    .map(link -> {
+                        String absoluteLink = link.attr("abs:href");
 
-                // 判斷是否為「站內連結」或「目標連結」
-                if (isValidInternalLink(absoluteLink, domain) && !visitedUrls.contains(absoluteLink)) {
+                        // 判斷是否為「站內連結」且未訪問
+                        if (isValidInternalLink(absoluteLink, domain) && !visitedUrls.contains(absoluteLink)) {
 
-                    // 遞迴調用，建構子樹
-                    WebNode childNode = buildTreeRecursive(absoluteLink, keyword, depth + 1);
+                            // 異步執行遞迴調用
+                            return CompletableFuture.supplyAsync(
+                                    () -> buildTreeRecursive(absoluteLink, keyword, depth + 1),
+                                    executorService // 使用執行緒池
+                            );
+                        }
+                        return null; // 不符合條件的返回 null
+                    })
+                    .filter(f -> f != null) // 過濾掉 null 的 CompletableFuture
+                    .collect(Collectors.toList());
 
-                    if (childNode != null) {
-                        currentNode.addChild(childNode);
-                    }
-                }
+            // 等待所有子網頁建樹任務完成
+            CompletableFuture<Void> allChildren = CompletableFuture
+                    .allOf(childFutures.toArray(new CompletableFuture[0]));
+
+            // 收集所有子樹的結果，並加入到當前節點 (阻塞點：只阻塞一次)
+            try {
+                allChildren.get(); // 等待所有子任務完成 (這是主要的阻塞等待)
+
+                childFutures.stream()
+                        .map(CompletableFuture::join) // 取得結果
+                        .filter(child -> child != null) // 過濾掉 null 的子節點
+                        .forEach(currentNode::addChild); // 加入到當前節點
+
+            } catch (Exception e) {
+                System.err.println("子樹並行建構時發生錯誤: " + e.getMessage());
+                // 可以選擇忽略錯誤或返回 null
             }
         }
+        // if (depth < MAX_DEPTH) {
+        // Elements links = doc.select("a[href]");
+        // String domain = getDomain(url); // 取得當前 URL 的域名，用於站內連結判斷
+
+        // for (Element link : links) {
+        // String absoluteLink = link.attr("abs:href");
+
+        // // 判斷是否為「站內連結」或「目標連結」
+        // if (isValidInternalLink(absoluteLink, domain) &&
+        // !visitedUrls.contains(absoluteLink)) {
+
+        // // 遞迴調用，建構子樹
+        // WebNode childNode = buildTreeRecursive(absoluteLink, keyword, depth + 1);
+
+        // if (childNode != null) {
+        // currentNode.addChild(childNode);
+        // }
+        // }
+        // }
+        // }
 
         System.out.println("Node: " + url + " | Depth: " + depth + " | Score: " + score + " | Children: "
                 + currentNode.getChildren().size());
@@ -191,5 +241,14 @@ public class LinkExtractor {
         }
 
         return true;
+    }
+
+    // 【新增方法】Spring 容器銷毀 Bean 時會自動調用此方法
+    @Override
+    public void destroy() {
+        if (executorService != null && !executorService.isShutdown()) {
+            System.out.println("[Link Extractor] 關閉內部執行緒池...");
+            executorService.shutdown();
+        }
     }
 }
