@@ -39,7 +39,7 @@ public class LinkExtractor implements DisposableBean {
         this.keywordScorer = keywordScorer;
         // 為了簡單起見，我們在這裡創建一個新的執行緒池用於內部爬取
         // 最佳實踐是從 SearchManager 或配置中注入同一個
-        this.executorService = Executors.newFixedThreadPool(10);
+        this.executorService = Executors.newFixedThreadPool(30);
     }
 
     /**

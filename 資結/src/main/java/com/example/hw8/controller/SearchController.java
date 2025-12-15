@@ -5,6 +5,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import java.util.stream.Collectors;
 
 import com.example.hw8.server.RankingServer;
 import com.example.hw8.model.WebNode;
@@ -18,7 +19,7 @@ import java.util.Map;
 @Controller
 public class SearchController {
 
-    // 【核心變動】注入 RankingService
+    // 注入 RankingService
     private final SearchManager searchManager;
 
     public SearchController(SearchManager searchManager) {
@@ -39,8 +40,12 @@ public class SearchController {
 
         // 呼叫 SearchManager 的新方法
         List<WebNode> results = searchManager.performTreeSearchAndRank(keyword, manualSeeds);
+
+        // 新增過濾邏輯：只保留 TotalScore > 0 的根節點
+        List<WebNode> filteredResults = results.stream().filter(node -> node.getTotalScore() > 0).collect(Collectors.toList());
+
         model.addAttribute("keyword", keyword);
-        model.addAttribute("results", results);
+        model.addAttribute("results", filteredResults);
 
         return "search";
 

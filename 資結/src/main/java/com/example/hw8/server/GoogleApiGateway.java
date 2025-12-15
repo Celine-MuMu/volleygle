@@ -44,9 +44,9 @@ public class GoogleApiGateway {
         String langParam = query.matches(".*[\\u4e00-\\u9fa5]+.*") ? "&lr=lang_zh-TW" : "";
 
         try {
-            // 【核心修正點：查詢數量】從 1 開始，到小於 51 結束，每次遞增 10
+            // 從 1 開始，到小於 51 結束，每次遞增 10
             // 總共會執行 5 次呼叫 (start=1, 11, 21, 31, 41)，最多獲取 50 筆結果。
-            for (int i = 1; i < 51; i += 10) {
+            for (int i = 1; i < 21; i += 10) { //因為可能要跑很多次 先改21
                 String q = URLEncoder.encode(query, StandardCharsets.UTF_8.name());
 
                 // num=10 每次獲取 10 筆
