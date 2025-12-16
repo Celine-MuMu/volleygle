@@ -17,7 +17,7 @@ public class SearchManager { // 專門負責協調所有服務
     // 設置一個專門用於 I/O 密集型任務的執行緒池
     // 初始 URL 數量通常不多，可以設定一個適中的數量，例如 20 個
     private final ExecutorService executorService = Executors.newFixedThreadPool(20);
-    //偷偷加固定的關鍵字
+    // 偷偷加固定的關鍵字
     private static final List<String> FIXED_KEYWORDS = List.of("排球", "台灣職業排球聯盟", "volleyball");
 
     // 注入所有被協調的服務

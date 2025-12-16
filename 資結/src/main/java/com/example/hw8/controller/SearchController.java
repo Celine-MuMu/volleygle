@@ -41,8 +41,9 @@ public class SearchController {
         // 呼叫 SearchManager 的新方法
         List<WebNode> results = searchManager.performTreeSearchAndRank(keyword, manualSeeds);
 
-        // 新增過濾邏輯：只保留 TotalScore > 0 的根節點
-        List<WebNode> filteredResults = results.stream().filter(node -> node.getTotalScore() > 0).collect(Collectors.toList());
+        // 只保留 TotalScore > 0 的根節點
+        List<WebNode> filteredResults = results.stream().filter(node -> node.getTotalScore() > 0)
+                .collect(Collectors.toList());
 
         model.addAttribute("keyword", keyword);
         model.addAttribute("results", filteredResults);
