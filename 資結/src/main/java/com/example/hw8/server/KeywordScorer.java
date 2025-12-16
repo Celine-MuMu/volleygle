@@ -21,7 +21,6 @@ public class KeywordScorer {
     private static final Map<String, Double> FIXED_SCORING_KEYWORDS = Map.of(
             "排球", 2.0,
             "台灣職業排球聯盟", 1.0, // 給予更高的權重
-            "volleyball", 1.0,
             "企業聯賽", 1.2);
 
     public KeywordScorer(@Value("${scoring.weighted-keywords}") String weightedKeywordsString) {
@@ -42,16 +41,16 @@ public class KeywordScorer {
 
             // 1. 【標題計分】 (5 倍權重)
             int titleCount = countKeywordOccurrences(titleText, lowerKeyword);
-            totalScore += titleCount * 5;
+            totalScore += titleCount * 50;
 
             // 2. 【內文計分】
             int bodyCount = countKeywordOccurrences(bodyText, lowerKeyword);
 
             // 如果內容少於 500 個字符，內文分數減半。
             if (bodyText.length() < 500) {
-                totalScore += bodyCount / 2;
+                totalScore += bodyCount * 2;
             } else {
-                totalScore += bodyCount;
+                totalScore += bodyCount * 5;
             }
 
             // 3. 【偷偷家的關鍵字計分】: 使用 FIXED_SCORING_KEYWORDS

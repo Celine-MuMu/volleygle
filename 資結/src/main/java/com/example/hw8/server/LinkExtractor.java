@@ -39,7 +39,7 @@ public class LinkExtractor implements DisposableBean {
         this.keywordScorer = keywordScorer;
         // 為了簡單起見，我們在這裡創建一個新的執行緒池用於內部爬取
         // 最佳實踐是從 SearchManager 或配置中注入同一個
-        this.executorService = Executors.newFixedThreadPool(30);
+        this.executorService = Executors.newFixedThreadPool(10);
     }
 
     /**
@@ -141,26 +141,6 @@ public class LinkExtractor implements DisposableBean {
                 // 可以選擇忽略錯誤或返回 null
             }
         }
-        // if (depth < MAX_DEPTH) {
-        // Elements links = doc.select("a[href]");
-        // String domain = getDomain(url); // 取得當前 URL 的域名，用於站內連結判斷
-
-        // for (Element link : links) {
-        // String absoluteLink = link.attr("abs:href");
-
-        // // 判斷是否為「站內連結」或「目標連結」
-        // if (isValidInternalLink(absoluteLink, domain) &&
-        // !visitedUrls.contains(absoluteLink)) {
-
-        // // 遞迴調用，建構子樹
-        // WebNode childNode = buildTreeRecursive(absoluteLink, keyword, depth + 1);
-
-        // if (childNode != null) {
-        // currentNode.addChild(childNode);
-        // }
-        // }
-        // }
-        // }
 
         System.out.println("Node: " + url + " | Depth: " + depth + " | Score: " + score + " | Children: "
                 + currentNode.getChildren().size());

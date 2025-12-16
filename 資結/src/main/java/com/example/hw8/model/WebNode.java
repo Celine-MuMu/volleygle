@@ -27,6 +27,10 @@ public class WebNode {
         return title;
     }
 
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
     public int getScore() {
         return score;
     }

@@ -18,7 +18,8 @@ public class SearchManager { // 專門負責協調所有服務
     // 初始 URL 數量通常不多，可以設定一個適中的數量，例如 20 個
     private final ExecutorService executorService = Executors.newFixedThreadPool(20);
     // 偷偷加固定的關鍵字
-    private static final List<String> FIXED_KEYWORDS = List.of("排球", "台灣職業排球聯盟", "volleyball");
+    private static final List<String> FIXED_KEYWORDS = List.of("排球", "台灣職業排球聯盟", "台灣排球", "舉球", "攔網", "發球", "自由人", "攻擊手",
+            "副攻手", "接應", "企業聯賽", "超級聯賽", "台灣排球聯賽");
 
     // 注入所有被協調的服務
     private final GoogleApiGateway googleApiGateway;
