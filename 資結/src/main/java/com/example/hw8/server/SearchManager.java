@@ -56,7 +56,7 @@ public class SearchManager { // 專門負責協調所有服務
 
         // 1. 取得初始 URL 列表 (Google API 結果 + 手動種子)
         // 假設 apiGateway.search 返回 Map<Title, URL>
-        Set<String> initialUrlSet = googleApiGateway.search(keyword).values().stream()
+        Set<String> initialUrlSet = googleApiGateway.search(combinedKeywordQuery).values().stream()
                 .collect(Collectors.toSet());
         // Set<String> initialUrlSet = new HashSet<>();
 
@@ -80,8 +80,8 @@ public class SearchManager { // 專門負責協調所有服務
                     System.out.println("  [Async Task] 開始建構樹: " + url);
                     return linkExtractor.buildWebTree(url, keyword);
                 }, executorService) // 使用我們定義的執行緒池
-                        // 🏆 【修正點】: 為每個建樹任務設置總時間限制 (例如 30 秒)
-                        .orTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                        // 🏆 【修正點】: 為每個建樹任務設置總時間限制 (例如 50 秒)
+                        .orTimeout(50, java.util.concurrent.TimeUnit.SECONDS)
                         // 設置超時處理：如果超時，則返回 null，不影響整體流程
                         .exceptionally(ex -> {
                             System.err.println("  [Async Task] 警告: URL 建樹超時或失敗: " + url + " | 錯誤: " + ex.getMessage());

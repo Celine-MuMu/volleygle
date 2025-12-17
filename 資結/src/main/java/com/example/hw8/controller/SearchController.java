@@ -40,12 +40,17 @@ public class SearchController {
         manualSeeds.add("https://www.ctusf.org.tw/news/");
         manualSeeds.add("https://volleyball.ctssf.org.tw/");
         manualSeeds.add("https://sports.ltn.com.tw/volleyball");
+        manualSeeds.add("https://zh.wikipedia.org/zh-tw/%E6%8E%92%E7%90%83");
         manualSeeds.add("https://www.sportsv.net/volleyball");
         manualSeeds.add("https://udn.com/search/tagging/2/%E6%8E%92%E7%90%83");
         manualSeeds.add(
                 "https://zh.wikipedia.org/wiki/Category:%E5%8F%B0%E7%81%A3%E7%94%B7%E5%AD%90%E6%8E%92%E7%90%83%E9%81%8B%E5%8B%95%E5%93%A1");
         manualSeeds.add(
                 "https://zh.wikipedia.org/wiki/Category:%E5%8F%B0%E7%81%A3%E5%A5%B3%E5%AD%90%E6%8E%92%E7%90%83%E9%81%8B%E5%8B%95%E5%93%A1");
+
+        manualSeeds.add(
+                "https://zh.wikipedia.org/wiki/Category:%E4%BC%81%E6%A5%AD%E6%8E%92%E7%90%83%E8%81%AF%E8%B3%BD%E7%90%83%E9%9A%8A");
+        manualSeeds.add("https://www.tpenoc.net/sport/volleyball/");
 
         // 呼叫 SearchManager 的新方法
         List<WebNode> results = searchManager.performTreeSearchAndRank(keyword, manualSeeds);

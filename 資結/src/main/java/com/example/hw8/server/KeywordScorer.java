@@ -77,9 +77,9 @@ public class KeywordScorer {
         }
         // 新增排球關鍵字檢查
         boolean hasVolleyball = titleText.contains("排球") ||
-                bodyText.contains("排球") ||
                 bodyText.contains("男排") ||
                 bodyText.contains("球員") ||
+                bodyText.contains("女排") ||
                 bodyText.contains("企聯");
 
         // // 如果網址是維基百科，直接給予「絕對領先」的分數
