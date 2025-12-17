@@ -2,141 +2,242 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Google Search</title>
+    <title>Volleygle Search</title>
+
     <style>
         body {
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f5f5f5;
+            font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #eef2f7, #f8f9fb);
             margin: 0;
             padding: 0;
         }
 
         .container {
-            max-width: 800px;
-            margin: 50px auto;
-            background-color: white;
-            padding: 30px 40px;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            max-width: 900px;
+            margin: 60px auto;
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        }
+
+        /* Header */
+        .logo {
+            display: block;
+            margin: 0 auto 15px;
+            max-width: 180px;
         }
 
         h2 {
             text-align: center;
-            color: #333;
-            font-size: 32px;
+            font-size: 34px;
+            margin-bottom: 10px;
+            color: #202124;
         }
 
+        /* Search bar */
         form {
             display: flex;
-            margin-top: 20px;
+            margin: 30px 0 10px;
         }
 
         input[type="text"] {
             flex: 1;
-            padding: 10px 15px;
-            border: 1px solid #ccc;
-            border-radius: 5px 0 0 5px;
+            padding: 14px 18px;
             font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px 0 0 8px;
+            outline: none;
+        }
+
+        input[type="text"]:focus {
+            border-color: #4285f4;
         }
 
         button {
-            padding: 10px 20px;
+            padding: 14px 26px;
+            font-size: 16px;
             border: none;
             background-color: #4285f4;
-            color: white;
-            font-size: 16px;
+            color: #fff;
             cursor: pointer;
-            border-radius: 0 5px 5px 0;
-            transition: background-color 0.3s;
+            border-radius: 0 8px 8px 0;
+            transition: background-color 0.25s;
         }
 
         button:hover {
             background-color: #3367d6;
         }
 
-        .results {
-            margin-top: 30px;
+        /* Results */
+        .results-title {
+            margin-top: 35px;
+            font-size: 24px;
+            color: #333;
         }
 
-        .results h3 {
-            margin-bottom: 15px;
-        }
-
-        .results ul {
+        .result-list {
             list-style: none;
             padding: 0;
+            margin-top: 20px;
         }
 
-        .results li {
-            margin-bottom: 12px;
-            padding: 10px 15px;
-            background-color: #f9f9f9;
-            border-radius: 5px;
-            transition: background-color 0.2s;
+        .result-card {
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 22px;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
 
-        .results li:hover {
-            background-color: #e0e0e0;
+        .result-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.08);
         }
 
-        .results a {
+        .score-row {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-right: 6px;
+        }
+
+        .badge-total {
+            background-color: #ffe6e6;
+            color: #c62828;
+        }
+
+        .badge-page {
+            background-color: #e8f0fe;
+            color: #1a73e8;
+        }
+
+        .result-card h3 {
+            margin: 10px 0 6px;
+            font-size: 20px;
+        }
+
+        .result-card a {
             text-decoration: none;
             color: #1a0dab;
-            font-weight: 500;
         }
 
-        .results a:hover {
+        .result-card a:hover {
             text-decoration: underline;
+        }
+
+        .url {
+            font-size: 13px;
+            color: #5f6368;
+            word-break: break-all;
+        }
+
+        /* Children */
+        .children {
+            margin-top: 15px;
+            padding: 12px 16px;
+            background-color: #f1f3f4;
+            border-radius: 8px;
+        }
+
+        .children h4 {
+            margin: 0 0 8px;
+            font-size: 15px;
+        }
+
+        .children ul {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        .children li {
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .hint {
+            margin-top: 6px;
+            font-style: italic;
+            color: #777;
+            font-size: 13px;
+        }
+
+        .no-result {
+            margin-top: 30px;
+            padding: 16px;
+            background-color: #fff3cd;
+            border-radius: 8px;
+            color: #856404;
         }
     </style>
 </head>
+
 <body>
 <div class="container">
-    <img src="/assets/volleygle_logo.png" alt="Volleygle Logo" style="display: block; margin: 0 auto 20px; max-width: 200px;">
+
+    <img src="../static/assets/volleygle_logo.png" alt="Volleygle Logo" class="logo">
     <h2>Volleygle</h2>
+
     <form th:action="@{/search}" method="post">
         <input type="text" name="keyword" th:value="${keyword}" placeholder="Enter keyword">
         <button type="submit">Search</button>
     </form>
 
     <div th:if="${results != null and !results.empty}">
-    <h2>🏆 搜尋結果總覽 (<span th:text="${results.size()}"></span> 筆)</h2>
-    
-    <ul class="result-list" style="list-style-type: none; padding-left: 0;">
-        <li th:each="node : ${results}" style="margin-bottom: 25px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
-            
-            <div>
-                <strong>🌟 總分數 (Total Score): </strong> 
-                <span th:text="${node.totalScore}" style="color: #c00; font-weight: bold;"></span> 
-                (頁面分數: <span th:text="${node.score}"></span>)
-            </div>
-            
-            <h3>
-                <a th:href="${node.url}" th:text="${node.title}" target="_blank"></a>
-            </h3>
-            <p style="font-size: 0.9em; color: #555;">URL: <span th:text="${node.url}"></span></p>
+        <h3 class="results-title">
+            🏆 搜尋結果總覽（<span th:text="${results.size()}"></span> 筆）
+        </h3>
 
-            <div th:if="${!node.children.empty}" style="margin-top: 10px; padding-left: 10px; border-left: 2px solid #eee;">
-                <h4>⬇️ 追蹤到的子網頁:</h4>
-                <ul style="list-style-type: disc; margin-top: 5px;">
-                    <li th:each="child : ${node.children}" th:if="${child.score > 0}">
-                        [<span th:text="${child.score}"></span> 分] 
-                        <a th:href="${child.url}" th:text="${child.title}" target="_blank"></a>
-                    </li>
-                </ul>
-                <div th:if="${node.children.size() > 5}" style="font-style: italic; color: #888;">
-                    (已找到更多子網頁，僅在此處列出部分)
+        <ul class="result-list">
+            <li th:each="node : ${results}" class="result-card">
+
+                <div class="score-row">
+                    <span class="badge badge-total">
+                        總分 <span th:text="${node.totalScore}"></span>
+                    </span>
+                    <span class="badge badge-page">
+                        頁面分 <span th:text="${node.score}"></span>
+                    </span>
                 </div>
-            </div>
-        </li>
-    </ul>
-</div>
 
-<div th:unless="${results != null and !results.empty}">
-    <div th:if="${keyword != null and !#strings.isEmpty(keyword)}">
-        <p>未找到相關結果，或所有爬取任務均失敗。請嘗試調整關鍵字或檢查您的測試 URL。</p>
+                <h3>
+                    <a th:href="${node.url}" th:text="${node.title}" target="_blank"></a>
+                </h3>
+
+                <div class="url" th:text="${node.url}"></div>
+
+                <div th:if="${!node.children.empty}" class="children">
+                    <h4>⬇️ 追蹤到的子網頁</h4>
+                    <ul>
+                        <li th:each="child : ${node.children}" th:if="${child.score > 0}">
+                            [<span th:text="${child.score}"></span> 分]
+                            <a th:href="${child.url}" th:text="${child.title}" target="_blank"></a>
+                        </li>
+                    </ul>
+
+                    <div th:if="${node.children.size() > 5}" class="hint">
+                        （已找到更多子網頁，僅列出部分）
+                    </div>
+                </div>
+
+            </li>
+        </ul>
     </div>
-</div>
 
+    <div th:unless="${results != null and !results.empty}">
+        <div th:if="${keyword != null and !#strings.isEmpty(keyword)}" class="no-result">
+            未找到相關結果，請嘗試調整關鍵字或檢查測試 URL。
+        </div>
+    </div>
+
+</div>
 </body>
 </html>
