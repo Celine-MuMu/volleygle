@@ -78,7 +78,8 @@ public class LinkExtractor implements DisposableBean {
             // 執行網路連線和爬取 (這是從 KeywordScorer 移來的邏輯)
             doc = Jsoup.connect(url)
                     .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-                    .timeout(5000)
+                    .referrer("https://www.google.com/") // 🏆 假裝是從 Google 點進來的
+                    .timeout(10000)
                     .ignoreHttpErrors(true)
                     .ignoreContentType(true)
                     .sslSocketFactory(getSslSocketFactory()) // 忽略 SSL 錯誤

@@ -38,6 +38,21 @@ public class KeywordScorer {
         String titleText = doc.title().toLowerCase();
         String bodyText = doc.text().toLowerCase();
 
+        // // 🏆 【精準擋掉維基百科首頁】
+        // // 邏輯：如果網址包含 wikipedia 且 (標題有"首頁" 或 網址有"Wikipedia:首页")
+        // if (url.contains("wikipedia.org")) {
+        // if (titleText.contains("首頁") || titleText.contains("main page")
+        // || url.contains("Wikipedia:%E9%A6%96%E9%A1%B5")) {
+        // // 只有當「首頁」裡面完全沒提到我們要的人名時，才給 0 分
+        // // 這樣可以防止誤殺（雖然首頁通常本來就沒什麼人名資料）
+        // if (!titleText.contains(keyword.toLowerCase().split("\\s+")[0])) {
+        // System.out.println("[Keyword Scorer] 已自動過濾維基百科無關首頁: " + url);
+        // return 0;
+        // }
+        // }
+        // }
+        System.out.println("【DEBUG】網址: " + url + " | 抓到的文字長度: " + bodyText.length());
+
         // 🏆 【修正點 A: 計算使用者關鍵字出現總次數 (門檻)】
         // 2. 【核心修正】將 keyword 拆解成單字列表 (處理空格)
         // 例如 "吳宗軒 排球" -> ["吳宗軒", "排球"]
@@ -61,7 +76,17 @@ public class KeywordScorer {
             }
         }
         // 新增排球關鍵字檢查
-        boolean hasVolleyball = titleText.contains("排球") || bodyText.contains("排球");
+        boolean hasVolleyball = titleText.contains("排球") ||
+                bodyText.contains("排球") ||
+                bodyText.contains("男排") ||
+                bodyText.contains("球員") ||
+                bodyText.contains("企聯");
+
+        // // 如果網址是維基百科，直接給予「絕對領先」的分數
+        // if (url.contains("wikipedia.org")) {
+        // totalScore += 20000;
+        // hasUserKeyword = true; // 強制過門檻
+        // }
 
         // 【 B: 強制門檻邏輯】
         // 如果使用者輸入的關鍵字在整個網頁中沒有出現，則直接給 0 分。

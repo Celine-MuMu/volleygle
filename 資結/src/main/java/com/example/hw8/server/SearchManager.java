@@ -56,7 +56,7 @@ public class SearchManager { // 專門負責協調所有服務
 
         // 1. 取得初始 URL 列表 (Google API 結果 + 手動種子)
         // 假設 apiGateway.search 返回 Map<Title, URL>
-        Set<String> initialUrlSet = googleApiGateway.search(combinedKeywordQuery).values().stream()
+        Set<String> initialUrlSet = googleApiGateway.search(keyword).values().stream()
                 .collect(Collectors.toSet());
         // Set<String> initialUrlSet = new HashSet<>();
 
