@@ -10,10 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap; // 【新增】引入 ConcurrentHashMap
 
-// 引入處理 SSL 錯誤所需的類別
-import javax.net.ssl.*;
-import java.security.cert.X509Certificate;
-
 @Service
 public class KeywordScorer {
 
@@ -23,7 +19,12 @@ public class KeywordScorer {
             "台灣職業排球聯盟", 1.0, // 給予更高的權重
             "企業聯賽", 1.2);
 
-    public KeywordScorer(@Value("${scoring.weighted-keywords}") String weightedKeywordsString) {
+    // public KeywordScorer(@Value("${scoring.weighted-keywords:}") String
+    // weightedKeywordsString) {
+    // System.out.println("[Keyword Scorer] 載入固定秘密計分關鍵字: " +
+    // FIXED_SCORING_KEYWORDS);
+    // }
+    public KeywordScorer() {
         System.out.println("[Keyword Scorer] 載入固定秘密計分關鍵字: " + FIXED_SCORING_KEYWORDS);
     }
 
@@ -37,11 +38,25 @@ public class KeywordScorer {
         String titleText = doc.title().toLowerCase();
         String bodyText = doc.text().toLowerCase();
 
+        // 🏆 【修正點 A: 計算使用者關鍵字出現總次數 (門檻)】
+        int userTitleCount = countKeywordOccurrences(titleText, lowerKeyword);
+        int userBodyCount = countKeywordOccurrences(bodyText, lowerKeyword);
+        int userTotalCount = userTitleCount + userBodyCount;
+
+        // 🏆 【修正點 B: 強制門檻邏輯】
+        // 如果使用者輸入的關鍵字在整個網頁中沒有出現，則直接給 0 分。
+        if (userTotalCount == 0) {
+            // 確保只有在使用者輸入了關鍵字時才執行這個門檻
+            if (!keyword.trim().isEmpty()) {
+                return 0; // 沒有使用者關鍵字，直接放棄
+            }
+        }
+
         try {
 
             // 1. 【標題計分】 (5 倍權重)
             int titleCount = countKeywordOccurrences(titleText, lowerKeyword);
-            totalScore += titleCount * 50;
+            totalScore += titleCount * 10;
 
             // 2. 【內文計分】
             int bodyCount = countKeywordOccurrences(bodyText, lowerKeyword);
@@ -86,27 +101,4 @@ public class KeywordScorer {
         return count;
     }
 
-    /**
-     * 創建一個信任所有憑證的 SSL Socket Factory，用來繞過 SSL/TLS 錯誤。
-     */
-    private static SSLSocketFactory getSslSocketFactory() throws Exception {
-        // 信任管理器：信任所有憑證
-        TrustManager[] trustAllCerts = new TrustManager[] {
-                new X509TrustManager() {
-                    public X509Certificate[] getAcceptedIssuers() {
-                        return null;
-                    }
-
-                    public void checkClientTrusted(X509Certificate[] certs, String authType) {
-                    }
-
-                    public void checkServerTrusted(X509Certificate[] certs, String authType) {
-                    }
-                }
-        };
-
-        SSLContext sslContext = SSLContext.getInstance("SSL");
-        sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
-        return sslContext.getSocketFactory();
-    }
 }
