@@ -193,7 +193,7 @@
 
     <div th:if="${results != null and !results.empty}">
         <h3 class="results-title">
-            🏆 搜尋結果總覽（<span th:text="${results.size()}"></span> 筆）
+            搜尋結果總覽（<span th:text="${results.size()}"></span> 筆）
         </h3>
 
         <ul class="result-list">
@@ -215,7 +215,7 @@
                 <div class="url" th:text="${node.url}"></div>
 
                 <div th:if="${!node.children.empty}" class="children">
-                    <h4>⬇️ 追蹤到的子網頁</h4>
+                    <h4>追蹤到的子網頁</h4>
                     <ul>
                         <li th:each="child : ${node.children}" th:if="${child.score > 0}">
                             [<span th:text="${child.score}"></span> 分]
