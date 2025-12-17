@@ -39,7 +39,7 @@ public class LinkExtractor implements DisposableBean {
         this.keywordScorer = keywordScorer;
         // 為了簡單起見，我們在這裡創建一個新的執行緒池用於內部爬取
         // 最佳實踐是從 SearchManager 或配置中注入同一個
-        this.executorService = Executors.newFixedThreadPool(10);
+        this.executorService = Executors.newFixedThreadPool(30);
     }
 
     /**
@@ -99,6 +99,9 @@ public class LinkExtractor implements DisposableBean {
         int score = keywordScorer.getPageScore(url, keyword, doc);
         currentNode.setScore(score);
 
+        // 取得父網頁標題，用於判斷子網頁標題是否重複
+        final String parentTitle = currentNode.getTitle();
+
         // 3. 提取並遞迴追蹤子連結
         if (depth < MAX_DEPTH) {
             Elements links = doc.select("a[href]");
@@ -108,15 +111,35 @@ public class LinkExtractor implements DisposableBean {
             List<CompletableFuture<WebNode>> childFutures = links.stream()
                     .map(link -> {
                         String absoluteLink = link.attr("abs:href");
+                        final String linkText = link.text().trim();
 
                         // 判斷是否為「站內連結」且未訪問
                         if (isValidInternalLink(absoluteLink, domain) && !visitedUrls.contains(absoluteLink)) {
 
                             // 異步執行遞迴調用
                             return CompletableFuture.supplyAsync(
-                                    () -> buildTreeRecursive(absoluteLink, keyword, depth + 1),
-                                    executorService // 使用執行緒池
-                            );
+                                    () -> {
+                                        WebNode childNode = buildTreeRecursive(absoluteLink, keyword, depth + 1);
+
+                                        if (childNode != null) {
+                                            String childTitle = childNode.getTitle();
+
+                                            // 【核心修正邏輯】
+                                            // 判斷條件：
+                                            // 1. 子網頁標題為空 (childTitle == null)
+                                            // 2. 或子網頁標題與父網頁標題 (parentTitle) 相同 (重複)
+                                            if ((childTitle == null || childTitle.equals(parentTitle)) &&
+                                                    !linkText.isEmpty()
+                                                    && !linkText.equalsIgnoreCase(childNode.getUrl())) {
+
+                                                // 🏆 覆蓋標題：使用 Anchor Text
+                                                childNode.setTitle(linkText);
+                                            }
+                                        }
+                                        return childNode;
+                                    },
+                                    executorService);
+
                         }
                         return null; // 不符合條件的返回 null
                     })

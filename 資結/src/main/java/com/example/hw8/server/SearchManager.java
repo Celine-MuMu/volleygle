@@ -18,8 +18,7 @@ public class SearchManager { // 專門負責協調所有服務
     // 初始 URL 數量通常不多，可以設定一個適中的數量，例如 20 個
     private final ExecutorService executorService = Executors.newFixedThreadPool(20);
     // 偷偷加固定的關鍵字
-    private static final List<String> FIXED_KEYWORDS = List.of("排球", "台灣職業排球聯盟", "台灣排球", "舉球", "攔網", "發球", "自由人", "攻擊手",
-            "副攻手", "接應", "企業聯賽", "超級聯賽", "台灣排球聯賽");
+    private static final List<String> FIXED_KEYWORDS = List.of("排球", "台灣職業排球聯盟", "企業聯賽", "台灣排球聯賽");
 
     // 注入所有被協調的服務
     private final GoogleApiGateway googleApiGateway;
@@ -79,7 +78,14 @@ public class SearchManager { // 專門負責協調所有服務
                     // 這個 Lambda 運算式會在執行緒池中執行
                     System.out.println("  [Async Task] 開始建構樹: " + url);
                     return linkExtractor.buildWebTree(url, keyword);
-                }, executorService)) // 使用我們定義的執行緒池
+                }, executorService) // 使用我們定義的執行緒池
+                        // 🏆 【修正點】: 為每個建樹任務設置總時間限制 (例如 30 秒)
+                        .orTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                        // 設置超時處理：如果超時，則返回 null，不影響整體流程
+                        .exceptionally(ex -> {
+                            System.err.println("  [Async Task] 警告: URL 建樹超時或失敗: " + url + " | 錯誤: " + ex.getMessage());
+                            return null;
+                        }))
                 .collect(Collectors.toList());
 
         // 2b. 等待所有異步任務完成
