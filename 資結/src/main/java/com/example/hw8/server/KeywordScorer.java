@@ -39,17 +39,37 @@ public class KeywordScorer {
         String bodyText = doc.text().toLowerCase();
 
         // 🏆 【修正點 A: 計算使用者關鍵字出現總次數 (門檻)】
-        int userTitleCount = countKeywordOccurrences(titleText, lowerKeyword);
-        int userBodyCount = countKeywordOccurrences(bodyText, lowerKeyword);
-        int userTotalCount = userTitleCount + userBodyCount;
+        // 2. 【核心修正】將 keyword 拆解成單字列表 (處理空格)
+        // 例如 "吳宗軒 排球" -> ["吳宗軒", "排球"]
+        String[] keywordParts = keyword.toLowerCase().split("\\s+");
 
-        // 🏆 【修正點 B: 強制門檻邏輯】
-        // 如果使用者輸入的關鍵字在整個網頁中沒有出現，則直接給 0 分。
-        if (userTotalCount == 0) {
-            // 確保只有在使用者輸入了關鍵字時才執行這個門檻
-            if (!keyword.trim().isEmpty()) {
-                return 0; // 沒有使用者關鍵字，直接放棄
+        boolean hasUserKeyword = false;
+        for (String part : keywordParts) {
+            if (part.isEmpty())
+                continue; // 跳過空字串
+            int partCountInTitle = countKeywordOccurrences(titleText, part);
+            int partCountInBody = countKeywordOccurrences(bodyText, part);
+            if (partCountInTitle + partCountInBody > 0) {
+                hasUserKeyword = true;
             }
+            // 使用者關鍵字的權重 (標題 10 倍, 內文依長度計分)
+            totalScore += partCountInTitle * 10;
+            if (bodyText.length() < 500) {
+                totalScore += partCountInBody * 2;
+            } else {
+                totalScore += partCountInBody * 5;
+            }
+        }
+        // 新增排球關鍵字檢查
+        boolean hasVolleyball = titleText.contains("排球") || bodyText.contains("排球");
+
+        // 【 B: 強制門檻邏輯】
+        // 如果使用者輸入的關鍵字在整個網頁中沒有出現，則直接給 0 分。
+        if (!hasUserKeyword && !keyword.trim().isEmpty()) {
+            return 0;
+        }
+        if (!hasVolleyball) {
+            return 0;
         }
 
         try {
