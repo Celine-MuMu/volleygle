@@ -17,7 +17,8 @@ public class KeywordScorer {
     private static final Map<String, Double> FIXED_SCORING_KEYWORDS = Map.of(
             "排球", 2.0,
             "台灣職業排球聯盟", 1.0, // 給予更高的權重
-            "企業聯賽", 1.2);
+            "企業聯賽", 1.0,
+            "台灣", 0.5);
 
     // public KeywordScorer(@Value("${scoring.weighted-keywords:}") String
     // weightedKeywordsString) {
@@ -81,12 +82,6 @@ public class KeywordScorer {
                 bodyText.contains("球員") ||
                 bodyText.contains("女排") ||
                 bodyText.contains("企聯");
-
-        // // 如果網址是維基百科，直接給予「絕對領先」的分數
-        // if (url.contains("wikipedia.org")) {
-        // totalScore += 20000;
-        // hasUserKeyword = true; // 強制過門檻
-        // }
 
         // 【 B: 強制門檻邏輯】
         // 如果使用者輸入的關鍵字在整個網頁中沒有出現，則直接給 0 分。
