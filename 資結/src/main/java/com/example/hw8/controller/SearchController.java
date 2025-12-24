@@ -14,7 +14,6 @@ import com.example.hw8.server.SearchManager;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-// 這裡不需要 throws UnsupportedEncodingException
 
 @Controller
 public class SearchController {
@@ -55,12 +54,8 @@ public class SearchController {
         // 呼叫 SearchManager 的新方法
         List<WebNode> results = searchManager.performTreeSearchAndRank(keyword, manualSeeds);
 
-        // 只保留 TotalScore > 0 的根節點
-        List<WebNode> filteredResults = results.stream().filter(node -> node.getTotalScore() > 0)
-                .collect(Collectors.toList());
-
         model.addAttribute("keyword", keyword);
-        model.addAttribute("results", filteredResults);
+        model.addAttribute("results", results);
 
         return "search";
 

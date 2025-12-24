@@ -20,75 +20,50 @@ public class GoogleApiGateway {
     private final RestTemplate restTemplate = new RestTemplate();
     private static final String API_BASE_URL = "https://www.googleapis.com/customsearch/v1";
 
-    // 排除常見的無效檔案類型和難以爬取的網域 (Sitemap, Facebook, Twitter 等)
-    private static final List<String> INVALID_FILTER_TERMS = Arrays.asList(".xml", ".gz", ".pdf", ".zip", ".rss",
-            ".sitemap", "xml.gz",
-            "facebook.com", "twitter.com", "instagram.com", "t.co");
+    // 【優化：擴大過濾名單】根據日誌紀錄，擋掉確定無關的大型站點與檔案格式
+    private static final List<String> INVALID_FILTER_TERMS = Arrays.asList(
+            ".xml", ".gz", ".zip", ".rss", ".sitemap", ".mht", ".pdf", ".doc", ".docx", ".csv",
+            "apple.com", "microsoft.com", "obsidian.md", "kyocera", "taiwanpay", "ubuy",
+            "facebook.com/sharer", "twitter.com/intent", "linkedin.com/cws",
+            "sina.com.cn", "ncbi.nlm.nih.gov", "stock.finance");
 
-    /**
-     * 呼叫 Google CSE API，獲取最多 50 筆結果。回傳結果為 Map<Title, Link>。
-     */
+    // 修改後的 GoogleApiGateway.java 片段
     public Map<String, String> search(String query) {
-
-        // 【DEBUG 輸出】用於確認程式碼使用的 Key/CX 是否正確
-        System.out.println("==================== API DEBUG INFO ====================");
-        System.out.println("【DEBUG】使用中的 CSE CX: " + this.cx);
-        String keyPrefix = this.apiKey != null && this.apiKey.length() >= 5 ? this.apiKey.substring(0, 5)
-                : "KEY_NOT_FOUND or SHORT";
-        System.out.println("【DEBUG】使用中的 API Key (前 5 碼): " + keyPrefix + "...");
-        System.out.println("======================================================");
-
-        Map<String, String> results = new LinkedHashMap<>();
-
-        // 判斷是否為中文，並設定語言限制 (lr=lang_zh-TW)
-        String langParam = query.matches(".*[\\u4e00-\\u9fa5]+.*") ? "&lr=lang_zh-TW" : "";
+        Map<String, String> results = new LinkedHashMap<>(); // 保持順序
 
         try {
-            // 從 1 開始，到小於 51 結束，每次遞增 10
-            // 總共會執行 5 次呼叫 (start=1, 11, 21, 31, 41)，最多獲取 50 筆結果。
-            for (int i = 1; i < 21; i += 10) { //因為可能要跑很多次 先改21
-                String q = URLEncoder.encode(query, StandardCharsets.UTF_8.name());
+            for (int i = 1; i < 21; i += 10) {
+                // 使用 UriComponentsBuilder 構建 URI，這會防止「二次編碼」
+                java.net.URI uri = org.springframework.web.util.UriComponentsBuilder
+                        .fromHttpUrl(API_BASE_URL)
+                        .queryParam("key", apiKey)
+                        .queryParam("cx", cx)
+                        .queryParam("q", query) // 直接傳入 "排球"，不要手動 encode
+                        .queryParam("num", 10)
+                        .queryParam("start", i)
+                        .build()
+                        .toUri();
 
-                // num=10 每次獲取 10 筆
-                String url = API_BASE_URL + "?key=" + apiKey +
-                        "&cx=" + cx + "&num=10&start=" + i + "&q=" + q + langParam;
+                System.out.println("【真正發出的網址】: " + uri.toString());
 
-                Map<String, Object> body = restTemplate.getForObject(url, Map.class);
+                // 傳入 URI 物件，RestTemplate 就不會亂動你的編碼了
+                Map<String, Object> body = restTemplate.getForObject(uri, Map.class);
 
-                if (body != null && body.get("items") instanceof List) {
+                if (body != null && body.containsKey("items")) {
                     List<Map<String, Object>> items = (List<Map<String, Object>>) body.get("items");
-
                     for (Map<String, Object> item : items) {
                         String title = (String) item.get("title");
                         String link = (String) item.get("link");
 
                         if (title != null && link != null) {
-
-                            // 檢查是否為無效的檔案類型或網域
-                            boolean isInvalid = INVALID_FILTER_TERMS.stream()
-                                    .anyMatch(term -> link.toLowerCase().contains(term));
-
-                            if (isInvalid) {
-                                // 略過無效連結
-                                continue;
-                            }
-
-                            try {
-                                // 嘗試解碼標題
-                                String decodedTitle = URLDecoder.decode(title, StandardCharsets.UTF_8.name());
-                                results.put(decodedTitle, link);
-                            } catch (Exception e) {
-                                results.put(title, link);
-                            }
+                            // 重要：改用 link 當 Key，防止標題重複導致 Reddit 被蓋掉
+                            results.put(link, title);
                         }
                     }
-                } else {
-                    // 如果 API 返回的 body 中沒有 items，表示已無更多結果，則退出迴圈
-                    break;
                 }
             }
         } catch (Exception e) {
-            System.err.println("!!! [API Gateway] 呼叫發生錯誤: " + e.getMessage() + " !!!");
+            System.err.println("搜尋失敗: " + e.getMessage());
         }
         return results;
     }

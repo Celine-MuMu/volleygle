@@ -11,11 +11,19 @@ public class WebNode {
     private String title;
     private int score = 0; // 該頁面本身的關鍵字分數
     private int totalScore = 0; // 該頁面及其所有子頁面的總分數 (用於排名)
+    private int googleRank = 999; // 新增：預設名次很大（代表排在後面）
     private List<WebNode> children = new ArrayList<>(); // 該頁面連結到的子網頁列表
+
+    public WebNode(String url, String title, int googleRank) {
+        this.url = url;
+        this.title = title;
+        this.googleRank = googleRank;
+    }
 
     public WebNode(String url, String title) {
         this.url = url;
         this.title = title;
+        this.children = new ArrayList<>(); // 初始化子節點列表，避免 NullPointerException
     }
 
     // Getters and Setters
@@ -45,6 +53,14 @@ public class WebNode {
 
     public void setTotalScore(int totalScore) {
         this.totalScore = totalScore;
+    }
+
+    public int getGoogleRank() {
+        return googleRank;
+    }
+
+    public void setGoogleRank(int googleRank) {
+        this.googleRank = googleRank;
     }
 
     public List<WebNode> getChildren() {

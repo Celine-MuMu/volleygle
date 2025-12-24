@@ -1,14 +1,9 @@
 
 package com.example.hw8.server;
 
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.springframework.stereotype.Service;
-import java.io.IOException;
-import org.springframework.beans.factory.annotation.Value; // 【新增】引入 Value
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap; // 【新增】引入 ConcurrentHashMap
 
 @Service
 public class KeywordScorer {
@@ -17,14 +12,8 @@ public class KeywordScorer {
     private static final Map<String, Double> FIXED_SCORING_KEYWORDS = Map.of(
             "排球", 2.0,
             "台灣職業排球聯盟", 1.0, // 給予更高的權重
-            "企業聯賽", 1.0,
-            "台灣", 0.5);
+            "企業聯賽", 1.0);
 
-    // public KeywordScorer(@Value("${scoring.weighted-keywords:}") String
-    // weightedKeywordsString) {
-    // System.out.println("[Keyword Scorer] 載入固定秘密計分關鍵字: " +
-    // FIXED_SCORING_KEYWORDS);
-    // }
     public KeywordScorer() {
         System.out.println("[Keyword Scorer] 載入固定秘密計分關鍵字: " + FIXED_SCORING_KEYWORDS);
     }
@@ -39,19 +28,6 @@ public class KeywordScorer {
         String titleText = doc.title().toLowerCase();
         String bodyText = doc.text().toLowerCase();
 
-        // // 🏆 【精準擋掉維基百科首頁】
-        // // 邏輯：如果網址包含 wikipedia 且 (標題有"首頁" 或 網址有"Wikipedia:首页")
-        // if (url.contains("wikipedia.org")) {
-        // if (titleText.contains("首頁") || titleText.contains("main page")
-        // || url.contains("Wikipedia:%E9%A6%96%E9%A1%B5")) {
-        // // 只有當「首頁」裡面完全沒提到我們要的人名時，才給 0 分
-        // // 這樣可以防止誤殺（雖然首頁通常本來就沒什麼人名資料）
-        // if (!titleText.contains(keyword.toLowerCase().split("\\s+")[0])) {
-        // System.out.println("[Keyword Scorer] 已自動過濾維基百科無關首頁: " + url);
-        // return 0;
-        // }
-        // }
-        // }
         System.out.println("【DEBUG】網址: " + url + " | 抓到的文字長度: " + bodyText.length());
 
         // 🏆 【修正點 A: 計算使用者關鍵字出現總次數 (門檻)】
@@ -76,37 +52,22 @@ public class KeywordScorer {
                 totalScore += partCountInBody * 5;
             }
         }
-        // 新增排球關鍵字檢查
-        boolean hasVolleyball = titleText.contains("排球") ||
-                bodyText.contains("男排") ||
-                bodyText.contains("球員") ||
-                bodyText.contains("女排") ||
-                bodyText.contains("企聯");
-
-        // 【 B: 強制門檻邏輯】
-        // 如果使用者輸入的關鍵字在整個網頁中沒有出現，則直接給 0 分。
-        if (!hasUserKeyword && !keyword.trim().isEmpty()) {
-            return 0;
-        }
-        if (!hasVolleyball) {
-            return 0;
-        }
 
         try {
 
-            // 1. 【標題計分】 (5 倍權重)
-            int titleCount = countKeywordOccurrences(titleText, lowerKeyword);
-            totalScore += titleCount * 10;
+            // // 1. 【標題計分】
+            // int titleCount = countKeywordOccurrences(titleText, lowerKeyword);
+            // totalScore += titleCount * 10;
 
-            // 2. 【內文計分】
-            int bodyCount = countKeywordOccurrences(bodyText, lowerKeyword);
+            // // 2. 【內文計分】
+            // int bodyCount = countKeywordOccurrences(bodyText, lowerKeyword);
 
             // 如果內容少於 500 個字符，內文分數減半。
-            if (bodyText.length() < 500) {
-                totalScore += bodyCount * 2;
-            } else {
-                totalScore += bodyCount * 5;
-            }
+            // if (bodyText.length() < 500) {
+            // totalScore += bodyCount * 2;
+            // } else {
+            // totalScore += bodyCount * 5;
+            // }
 
             // 3. 【偷偷家的關鍵字計分】: 使用 FIXED_SCORING_KEYWORDS
             for (Map.Entry<String, Double> entry : FIXED_SCORING_KEYWORDS.entrySet()) {

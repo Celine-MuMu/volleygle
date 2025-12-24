@@ -1,31 +1,26 @@
+
+//         return rankingServer.rankWebTree(rootNodes);
+//     }
+// }
 package com.example.hw8.server;
 
 import com.example.hw8.model.WebNode;
 import org.springframework.stereotype.Service;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.CompletableFuture; // 引入異步處理的核心類
-import java.util.concurrent.ExecutorService; // 引入執行緒池
-import java.util.concurrent.Executors; // 引入執行緒池工具
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 @Service
-public class SearchManager { // 專門負責協調所有服務
+public class SearchManager {
 
-    // 設置一個專門用於 I/O 密集型任務的執行緒池
-    // 初始 URL 數量通常不多，可以設定一個適中的數量，例如 20 個
+    // 設置用於 I/O 任務的執行緒池
     private final ExecutorService executorService = Executors.newFixedThreadPool(20);
-    // 偷偷加固定的關鍵字
-    private static final List<String> FIXED_KEYWORDS = List.of("台灣", "排球");
 
-    // 注入所有被協調的服務
+    // 注入服務
     private final GoogleApiGateway googleApiGateway;
     private final LinkExtractor linkExtractor;
     private final RankingServer rankingServer;
 
-    // 建構子注入
     public SearchManager(GoogleApiGateway googleApiGateway,
             LinkExtractor linkExtractor,
             RankingServer rankingServer) {
@@ -35,87 +30,92 @@ public class SearchManager { // 專門負責協調所有服務
     }
 
     /**
-     * 執行完整的樹狀搜尋和排名流程 (整合所有服務)。
-     * 
-     * @param keyword        使用者輸入的關鍵字。
-     * @param manualSeedUrls 手動塞入的 URL 列表
-     * @return 排序好的 WebNode 根節點列表。
+     * 執行完整的樹狀搜尋和排名流程。
      */
     public List<WebNode> performTreeSearchAndRank(String keyword, List<String> manualSeedUrls) {
         System.out.println("--- SearchManager 啟動樹狀搜尋流程: " + keyword + " ---");
 
-        // 合併使用者關鍵字和固定關鍵字
-        String combinedKeywordQuery = keyword;
-        // 檢查固定關鍵字是否已包含在使用者輸入中，如果沒有則加入
-        for (String fixedKw : FIXED_KEYWORDS) {
-            if (!keyword.toLowerCase().contains(fixedKw.toLowerCase())) {
-                combinedKeywordQuery += " " + fixedKw;
+        // 強制在查詢後加上「排球」，避免搜尋結果發散到不相關領域
+        // 在執行 Google 搜尋前，直接把垃圾網域踢掉
+        String combinedQuery = "\"" + keyword + "\"";
+        // -site:twmp.com.tw -site:i-pass.com.tw -site:gov.tw
+        if (!keyword.toLowerCase().contains("排球") && !keyword.toLowerCase().contains("volleyball")) {
+            combinedQuery += " 排球";
+        }
+        System.out.println("【DEBUG】優化後實際查詢關鍵字: " + combinedQuery);
+
+        Set<String> initialUrlSet = new HashSet<>();
+
+        // 1. 使用 LinkedHashMap 保持插入順序，同時記錄 URL 及其原始名次
+        // Key: URL, Value: Initial Rank
+        Map<String, Integer> urlWithRankMap = new LinkedHashMap<>();
+
+        // --- 步驟 A：加入手動種子 (優先權最高，名次設為 0) ---
+        if (manualSeedUrls != null) {
+            for (String url : manualSeedUrls) {
+                urlWithRankMap.putIfAbsent(url, 0);
             }
         }
-        System.out.println("【DEBUG】實際查詢關鍵字: " + combinedKeywordQuery);
 
-        // 1. 取得初始 URL 列表 (Google API 結果 + 手動種子)
-        // 假設 apiGateway.search 返回 Map<Title, URL>
-        Set<String> initialUrlSet = googleApiGateway.search(combinedKeywordQuery).values().stream()
-                .collect(Collectors.toSet());
-        // Set<String> initialUrlSet = new HashSet<>();
-
-        // 合併手動塞入的網址
-        if (manualSeedUrls != null) {
-            initialUrlSet.addAll(manualSeedUrls);
+        // --- 步驟 B：取得 Google API 搜尋結果 (名次從 1 開始) ---
+        Map<String, String> googleResults = googleApiGateway.search(combinedQuery);
+        int rankCounter = 1;
+        for (String url : googleResults.keySet()) { // 現在 Key 才是網址
+            urlWithRankMap.putIfAbsent(url, rankCounter++);
         }
-        if (initialUrlSet.isEmpty()) {
+
+        // --- 步驟 C：執行社群媒體搜尋 (名次延續下去，或給予特定的起始名次) ---
+        String socialQuery = combinedQuery + " (site:instagram.com OR site:threads.net OR site:dcard.tw)";
+        Map<String, String> socialResults = googleApiGateway.search(socialQuery);
+        for (String url : socialResults.keySet()) {
+            urlWithRankMap.putIfAbsent(url, rankCounter++);
+        }
+
+        if (urlWithRankMap.isEmpty()) {
             System.out.println("沒有任何起始 URL，流程中止。");
             return new ArrayList<>();
         }
 
-        List<String> combinedUrls = new ArrayList<>(initialUrlSet);
-        System.out.println("總共找到 " + combinedUrls.size() + " 個起始 URL。開始並行建樹...");
+        // --- 【新增：觀察 Google 原始排名】 ---
+        System.out.println("\n=== [DEBUG] Google API 原始回傳名次清單 ===");
+        urlWithRankMap.forEach((url, rank) -> {
+            String source = (rank == 0) ? "[手動種子]" : "[Google搜尋]";
+            System.out.println(String.format("%-10s 名次: %2d | 網址: %s", source, rank, url));
+        });
+        System.out.println("==========================================\n");
 
-        // 2. 建構 WebNode 樹 (LinkExtractor 處理爬取、建樹、單頁計分)
-        // 2a. 將每個 URL 的建樹任務轉換為一個 CompletableFuture (異步任務)
-        List<CompletableFuture<WebNode>> futures = combinedUrls.stream()
-                .map(url -> CompletableFuture.supplyAsync(() -> {
-                    // 這個 Lambda 運算式會在執行緒池中執行
-                    System.out.println("  [Async Task] 開始建構樹: " + url);
-                    return linkExtractor.buildWebTree(url, keyword);
-                }, executorService) // 使用我們定義的執行緒池
-                        // 🏆 【修正點】: 為每個建樹任務設置總時間限制 (例如 50 秒)
-                        .orTimeout(50, java.util.concurrent.TimeUnit.SECONDS)
-                        // 設置超時處理：如果超時，則返回 null，不影響整體流程
-                        .exceptionally(ex -> {
-                            System.err.println("  [Async Task] 警告: URL 建樹超時或失敗: " + url + " | 錯誤: " + ex.getMessage());
-                            return null;
-                        }))
+        System.out.println("總共找到 " + urlWithRankMap.size() + " 個起始 URL。開始並行建樹...");
+
+        // 2. 並行建構 WebNode 樹 (將 rank 傳入 linkExtractor)
+        // 修改後的 map 區塊
+        List<CompletableFuture<WebNode>> futures = urlWithRankMap.entrySet().stream()
+                .map(entry -> {
+                    String url = entry.getKey();
+                    int initialRank = entry.getValue();
+
+                    // 明確宣告類型，幫助編譯器
+                    CompletableFuture<WebNode> future = CompletableFuture.supplyAsync(() -> {
+                        return linkExtractor.buildWebTree(url, keyword, initialRank);
+                    }, executorService)
+                            .orTimeout(30, TimeUnit.SECONDS)
+                            .exceptionally(ex -> {
+                                System.err.println(" [Async Task] 警告: URL 處理失敗: " + url);
+                                return null;
+                            });
+
+                    return future;
+                })
                 .collect(Collectors.toList());
 
-        // 2b. 等待所有異步任務完成
-        CompletableFuture<Void> allOf = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
+        // 等待所有任務完成
+        List<WebNode> rootNodes = CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                .thenApply(v -> futures.stream()
+                        .map(CompletableFuture::join)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList()))
+                .join();
 
-        // 2c. 收集結果並過濾掉 null
-        List<WebNode> rootNodes = allOf.thenApply(v -> futures.stream()
-                .map(CompletableFuture::join) // 取得每個 Future 的結果 (會阻塞直到結果可用)
-                .filter(root -> root != null)
-                .collect(Collectors.toList()))
-                .join(); // 阻塞主執行緒直到所有結果都收集完畢
-
-        System.out.println("並行建樹完成。成功建構 " + rootNodes.size() + " 個 WebNode 樹。");
-        // List<WebNode> rootNodes = new ArrayList<>();
-
-        // for (String url : combinedUrls) {
-        // System.out.println("開始建構樹: " + url);
-        // WebNode root = linkExtractor.buildWebTree(url, keyword);
-        // if (root != null) {
-        // rootNodes.add(root);
-        // }
-        // }
-
-        // 3. 排名和輸出 (RankingServer 處理總分計算和排序)
-        if (rootNodes.isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        // 呼叫 RankingServer 的排名方法
+        // 3. 排名和輸出
         return rankingServer.rankWebTree(rootNodes);
     }
 }
