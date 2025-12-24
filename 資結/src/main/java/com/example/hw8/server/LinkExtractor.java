@@ -28,28 +28,38 @@ public class LinkExtractor implements DisposableBean {
         this.keywordScorer = keywordScorer;
     }
 
-    // --- 修改後的進入點 ---
-    public WebNode buildWebTree(String url, String keyword, int initialRank) {
-        // 【修正 1】每棵樹建立自己獨立的 Set，不再共用
+    public WebNode buildWebTree(String url, String keyword, int initialRank, String apiTitle) {
         Set<String> localVisited = ConcurrentHashMap.newKeySet();
 
-        System.out.println("[Link Extractor] 開始爬取根節點: " + url);
-
-        // 【修正 2】直接呼叫遞迴，並在拿到結果後設定 Rank
-        WebNode root = buildTreeRecursive(url, keyword, 0, localVisited);
+        // 將 apiTitle 傳入遞迴方法
+        WebNode root = buildTreeRecursive(url, keyword, 0, localVisited, apiTitle);
 
         if (root != null) {
             root.setGoogleRank(initialRank);
         } else {
-            // 如果爬取失敗，至少回傳一個帶有 URL 和 Rank 的空節點，避免 RankingServer 報錯
-            root = new WebNode(url, "無法存取該網頁");
+            root = new WebNode(url, apiTitle); // 失敗時至少有 API 給的漂亮標題
             root.setGoogleRank(initialRank);
         }
+        // 每棵樹建立自己獨立的 Set，不再共用
+        // Set<String> localVisited = ConcurrentHashMap.newKeySet();
+
+        // System.out.println("[Link Extractor] 開始爬取根節點: " + url);
+
+        // // 直接呼叫遞迴，並在拿到結果後設定 Rank
+        // WebNode root = buildTreeRecursive(url, keyword, 0, localVisited);
+
+        // if (root != null) {
+        // root.setGoogleRank(initialRank);
+        // } else {
+        // // 如果爬取失敗，至少回傳一個帶有 URL 和 Rank 的空節點，避免 RankingServer 報錯
+        // root = new WebNode(url, "無法存取該網頁");
+        // root.setGoogleRank(initialRank);
+        // }
         return root;
     }
 
     // 【修正 3】將 visitedUrls 作為參數傳遞
-    private WebNode buildTreeRecursive(String url, String keyword, int depth, Set<String> visited) {
+    private WebNode buildTreeRecursive(String url, String keyword, int depth, Set<String> visited, String apiTitle) {
         if (depth > MAX_DEPTH || visited.contains(url))
             return null;
         visited.add(url);
@@ -61,13 +71,20 @@ public class LinkExtractor implements DisposableBean {
             Document doc = Jsoup.connect(url)
                     .userAgent(
                             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                    .timeout(3000) // 稍微放寬到 3 秒，2 秒有時太趕
+                    .timeout(3000)
                     .ignoreHttpErrors(true)
                     .sslSocketFactory(SSL_FACTORY)
                     .get();
 
-            String title = doc.title().isEmpty() ? url : doc.title();
-            WebNode node = new WebNode(url, title);
+            String jsoupTitle = doc.title();
+            String finalTitle = jsoupTitle;
+
+            if (url.contains("instagram.com") || url.contains("threads.net") || jsoupTitle.isEmpty()
+                    || jsoupTitle.equalsIgnoreCase("Instagram")) {
+                finalTitle = apiTitle; // 💖 相信 Google 的眼光
+            }
+
+            WebNode node = new WebNode(url, finalTitle);
             node.setScore(keywordScorer.getPageScore(url, keyword, doc));
 
             if (depth < MAX_DEPTH) {
@@ -77,7 +94,7 @@ public class LinkExtractor implements DisposableBean {
                         .filter(l -> !l.isEmpty() && !visited.contains(l))
                         .limit(8)
                         .map(l -> CompletableFuture.supplyAsync(
-                                () -> buildTreeRecursive(l, keyword, depth + 1, visited), // 傳遞同一個 Set
+                                () -> buildTreeRecursive(l, keyword, depth + 1, visited, apiTitle), // 傳遞同一個 Set
                                 executorService))
                         .collect(Collectors.toList());
 

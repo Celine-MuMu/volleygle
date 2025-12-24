@@ -21,19 +21,13 @@ public class RankingServer {
         // 1. 先計算每棵樹的總分 (TotalScore)
         rootNodes.forEach(this::calculateTotalScore);
 
-        // 2. 顯示被踢掉的網頁
-        rootNodes.stream()
-                .filter(node -> node.getTotalScore() <= 0)
-                .forEach(node -> System.out.println("[Ranking Server] 🚨 踢除無關網頁: " + node.getUrl() + " (總分為 0)"));
-
-        // 3. 執行過濾與排序 (根節點排序)
+        // 2. 執行過濾與排序 (根節點排序)
         List<WebNode> filteredNodes = rootNodes.stream()
-                .filter(node -> node.getTotalScore() > 0)
+                // .filter(node -> node.getTotalScore() > 0)
                 .sorted(Comparator.comparingInt(WebNode::getTotalScore).reversed())
                 .collect(Collectors.toCollection(ArrayList::new));
 
-        // 4. 【新增：讓子網頁也照分數排序】
-        // 針對留下來的每一個根節點，遞迴排序它們底下的子節點
+        // 3. 子網頁也照分數排序
         filteredNodes.forEach(this::sortChildrenRecursive);
 
         System.out.println("[Ranking Server] 排序完成。剩餘有效網站數量: " + filteredNodes.size());

@@ -12,7 +12,8 @@ public class KeywordScorer {
     private static final Map<String, Double> FIXED_SCORING_KEYWORDS = Map.of(
             "排球", 2.0,
             "台灣職業排球聯盟", 1.0, // 給予更高的權重
-            "企業聯賽", 1.0);
+            "企業聯賽", 1.0,
+            "台灣", 0.5);
 
     public KeywordScorer() {
         System.out.println("[Keyword Scorer] 載入固定秘密計分關鍵字: " + FIXED_SCORING_KEYWORDS);
@@ -22,29 +23,39 @@ public class KeywordScorer {
      * 爬取指定網址，計算關鍵字在網頁內容中出現的次數，並加入標題權重。
      */
     public int getPageScore(String url, String keyword, Document doc) {
-        String lowerKeyword = keyword.toLowerCase();
+
         int totalScore = 0;
 
         String titleText = doc.title().toLowerCase();
-        String bodyText = doc.text().toLowerCase();
 
-        System.out.println("【DEBUG】網址: " + url + " | 抓到的文字長度: " + bodyText.length());
+        // 🏆 【修正點】除了 doc.text()，額外抓取 Meta Description
+        StringBuilder contentToScore = new StringBuilder(doc.text().toLowerCase());
 
-        // 🏆 【修正點 A: 計算使用者關鍵字出現總次數 (門檻)】
-        // 2. 【核心修正】將 keyword 拆解成單字列表 (處理空格)
+        // 抓取 <meta name="description">
+        String metaDesc = doc.select("meta[name=description]").attr("content").toLowerCase();
+        // 抓取 <meta property="og:description"> (社群平台最愛用這個)
+        String ogDesc = doc.select("meta[property=og:description]").attr("content").toLowerCase();
+
+        contentToScore.append(" ").append(metaDesc).append(" ").append(ogDesc);
+        String bodyText = contentToScore.toString();
+
+        System.out.println("【DEBUG】網址: " + url + " | 抓到的文字長度: " + bodyText.length() + "| 分數：" + totalScore);
+
+        // 將 keyword 拆解成單字列表 (處理空格)
         // 例如 "吳宗軒 排球" -> ["吳宗軒", "排球"]
         String[] keywordParts = keyword.toLowerCase().split("\\s+");
 
+        // 判斷內容有沒有關鍵字
         boolean hasUserKeyword = false;
         for (String part : keywordParts) {
             if (part.isEmpty())
-                continue; // 跳過空字串
+                continue;
             int partCountInTitle = countKeywordOccurrences(titleText, part);
             int partCountInBody = countKeywordOccurrences(bodyText, part);
             if (partCountInTitle + partCountInBody > 0) {
                 hasUserKeyword = true;
             }
-            // 使用者關鍵字的權重 (標題 10 倍, 內文依長度計分)
+            // 使用者關鍵字的權重 (標題 10 倍, 內文依長度決定2倍或5倍)
             totalScore += partCountInTitle * 10;
             if (bodyText.length() < 500) {
                 totalScore += partCountInBody * 2;
@@ -54,28 +65,24 @@ public class KeywordScorer {
         }
 
         try {
-
-            // // 1. 【標題計分】
-            // int titleCount = countKeywordOccurrences(titleText, lowerKeyword);
-            // totalScore += titleCount * 10;
-
-            // // 2. 【內文計分】
-            // int bodyCount = countKeywordOccurrences(bodyText, lowerKeyword);
-
-            // 如果內容少於 500 個字符，內文分數減半。
-            // if (bodyText.length() < 500) {
-            // totalScore += bodyCount * 2;
-            // } else {
-            // totalScore += bodyCount * 5;
-            // }
-
-            // 3. 【偷偷家的關鍵字計分】: 使用 FIXED_SCORING_KEYWORDS
+            // 偷偷家的關鍵字計分 FIXED_SCORING_KEYWORDS
             for (Map.Entry<String, Double> entry : FIXED_SCORING_KEYWORDS.entrySet()) {
                 String fixedKeyword = entry.getKey();
                 Double weight = entry.getValue();
 
                 int occurrenceCount = countKeywordOccurrences(bodyText, fixedKeyword);
                 totalScore += (int) (occurrenceCount * weight);
+            }
+            // 偷偷幫社群媒體加分(因為我爬不到)
+            if (url.toLowerCase().contains("instagram.com") || url.toLowerCase().contains("threads.net")
+                    || url.toLowerCase().contains("threads.com")) {
+                totalScore += 50; // 給它 50 分的基本分
+                hasUserKeyword = true; // 強制讓它不被 /10，因為社群網站通常是你要的
+            }
+
+            // 如果內容完全沒有使用者關鍵字，分數/10
+            if (!hasUserKeyword) {
+                totalScore /= 10;
             }
             return totalScore;
 
@@ -86,9 +93,7 @@ public class KeywordScorer {
         }
     }
 
-    /**
-     * 計算關鍵字在原始文本中出現的次數。
-     */
+    // 計算關鍵字在原始文本中出現的次數。
     private int countKeywordOccurrences(String source, String keyword) {
         int count = 0;
         int lastIndex = 0;
